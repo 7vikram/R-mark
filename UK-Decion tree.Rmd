@@ -1,20 +1,21 @@
 ---
 title: "UK - Decision Tree"
-author: "Vikram"
+author: "Author_Name"
 date: "5/20/2021"
 output: html_document
 ---
 
-###load package
+### Load packages
 ```{r message=FALSE}
-my_pack <- function(package){
-  new_package <- package[!(package %in% installed.packages()[, "Package"])]
-  if (length(new_package)) 
-    install.packages(new_package, dependencies = TRUE)
-  sapply(package, require, character.only = TRUE)
+my_pack <- function(package)
+  {
+  new_packages <- package[!(package %in% installed.packages()[, "Package"])]
+  if (length(new_packages)) 
+    install.packages(new_packages, dependencies = T)
+  sapply(package, require, character.only = T)
 }
 
-packages <- c("dplyr", "tidyr", "knitr","randomForest","tibble",  "plotROC", "corrplot",
+packages <- c("tidyr", "dplyr", "knitr","randomForest","tibble",  "plotROC", "corrplot",
               "fastDummies", "plotly", "FactoMineR","ggplot2", "factoextra",
               "rpart", "rpart.plot",  "caret", "kernlab", "gridExtra")
 my_pack(packages)
@@ -25,29 +26,28 @@ my_pack(packages)
                                                                        
 ```{r}
 accidents_data <- read.csv (file.choose(), header = TRUE)
-accidents_data <- as_tibble(accidents_data[ , !(names(accidents_data) %in% c('Accident_Index', 'Latitude',
+accidents_data <- as_tibble(accidents_data[ , !(colnames(accidents_data) %in% c('Accident_Index', 'Latitude',
                                                                              'Datetime','Longitude'))])
 ```
 
 ###Sampling the data to just 20000 observations                                                                       
 ```{r}
 set.seed(1235)
-sampled_df_categorical <- sample_n(accidents_data, 20000)
+sampled_categorical <- sample_n(accidents_data, 20000)
 ```
 
 ###splitting the data into 70-30, where training-70 and test-30.                                                                       
 ```{r}
-set.seed(2345)
-sample <- createDataPartition(sampled_df_categorical$Accident_Severity, p=0.7, list=FALSE) 
-train_sample_categorical <- sampled_df_categorical[sample, ]
-test_sample_categorical <- sampled_df_categorical[-sample, ]
+set.seed(2355)
+sample_data <- createDataPartition(sampled_categorical$Accident_Severity, list=F, p=0.7) 
+train_sample_categorical <- sampled_categorical[sample_data, ]
+test_sample_categorical <- sampled_categorical[-sample_data, ]
 ```
 
-#### Accuracy Baseline                                                                      
+#### Baseline Accuracy                                                                       
 ```{r}
-accuracy_baseline <- round(length(test_sample_categorical[test_sample_categorical$Accident_Severity == 'Slight', ]$Accident_Severity)/
-                             length(test_sample_categorical$Accident_Severity), 3)
-accuracy_baseline
+base_accuracy <- round(length(test_sample_categorical[test_sample_categorical$Accident_Severity=='Slight',]$Accident_Severity)/length(test_sample_categorical$Accident_Severity), 3)
+base_accuracy
 ```
 ## Training
 ### Decision Tree
@@ -58,61 +58,61 @@ options(warn=-1)
 
 start_time <- Sys.time()
 
-unpruned_decisiontree <- rpart(Accident_Severity~., data=train_sample_categorical, method="class", 
-                               minbucket=1, minsplit=1, control=rpart.control(cp=0.0001))
+Upruned_decisiontree <- rpart(Accident_Severity ~ ., data = train_sample_categorical,
+                               minbucket=1, method="class", control=rpart.control(cp=0.0001), minsplit=1)
 ```
 
 
 #### Unpruned Decision tree                                                                     
 ```{r}
-png("Unpruned DecisionTree1.png", width=1920, height=1080, res=400)
+png("Unpruned DecisionTree1.png", width=1910, height=1075, res=450)
 
-rpart.plot(unpruned_decisiontree, main="Unpruned - Road accident severity in UK",
-           extra=104, branch.lty=3, split.cex=1.2, type=3)
+rpart.plot(Upruned_decisiontree, main = "Unpruned - Road accident severity in UK",
+           branch.lty=3, extra=104, type=3, split.cex=1.2)
 ```
 
 
 #### Unpruned accuracy                                                                   
 ```{r}
 dev.off()
-test_sample_categorical$pred <- predict(unpruned_decisiontree, test_sample_categorical, type="class")
+test_sample_categorical$pred <- predict(Upruned_decisiontree, test_sample_categorical, type="class")
 end_time <- Sys.time()
-dt_runtime <- round(as.numeric(end_time - start_time)/60, 2)
+df_runtime <- round(as.numeric(end_time - start_time)/60, 2)
 
-#unpruned accuracy 
-unpruned_accuracy <- round(mean(test_sample_categorical$pred == test_sample_categorical$Accident_Severity), 3)
+####Unpruned accuracy 
+unpruned_accuracy <- round(mean(test_sample_categorical$pred==test_sample_categorical$Accident_Severity),3)
 unpruned_accuracy
 ```
 
-#### Post-pruned Decision tree                                                                       
+####  Decision tree before Pruning                                                               
 ```{r}
-cp <- as_tibble(unpruned_decisiontree$cptable) %>%
-  filter(xerror <= min(xerror) + xstd) %>%
+c_p <- as_tibble(Upruned_decisiontree$cptable) %>%
   filter(xerror == max(xerror)) %>%
+  filter(xerror <= min(xerror) + xstd) %>%
   select(CP) %>%
   unlist()
-pruned_decisiontree <- prune(unpruned_decisiontree, cp=cp)
-rpart.plot(pruned_decisiontree, main="Pruned - Road accident severity in UK",
-           extra=104, split.cex=1.2, branch.lty=3,  type=3)
+prun_decisiontree <- prune(Upruned_decisiontree, cp=c_p)
+rpart.plot(prun_decisiontree, main="Pruned - Road accident severity in UK",
+           split.cex=1.2, extra=104,branch.lty=3,  type=3)
 ```
 
-##### Accuracy of pruned tree                                                                       
+##### Pruned_Tree Accuracy                                                                       
 ```{r}
 
-test_sample_categorical$pred <- predict(pruned_decisiontree, test_sample_categorical, type="class")
+test_sample_categorical$pred <- predict(prune_decisiontree, test_sample_categorical, type="class")
 pruned_accuracy <- round(mean(test_sample_categorical$pred == test_sample_categorical$Accident_Severity), 3)
 
 #compare accuracy
-data.frame(accuracy_baseline, unpruned_accuracy, pruned_accuracy)
+data.frame(base_accuracy, unpruned_accuracy, pruned_accuracy)
 
 
 str(test_sample_categorical)
 test_sample_categorical$Accident_Severity = as.factor(test_sample_categorical$Accident_Severity)
 
-dt_confusion_mtrx <- confusionMatrix(data=test_sample_categorical$pred, reference=test_sample_categorical$Accident_Severity)
+df_confusion_mtrx <- confusionMatrix(data=test_sample_categorical$pred, reference=test_sample_categorical$Accident_Severity)
 test_sample_categorical <- test_sample_categorical %>%
-  mutate(pred = predict(pruned_decisiontree, type="class", test_sample_categorical),
-         pred_prob = predict(pruned_decisiontree, type="prob", test_sample_categorical)[,2],
+  mutate(pred = predict(prune_decisiontree, type="class", test_sample_categorical),
+         pred_prob = predict(prun_decisiontree, type="prob", test_sample_categorical)[,2],
          error = ifelse(pred != Accident_Severity, 1, 0))
 ```
 
@@ -135,30 +135,31 @@ roc +
 
 
 ```{r}
-dt_recall <- round(dt_confusion_mtrx$byClass['Sensitivity'], 3)
+df_recall <- round(df_conf_mtrx$byClass['Sensitivity'], 3)
 
-dt_accuracy <- round(dt_confusion_mtrx$overall['Accuracy'], 3)
+df_accuracy <- round(df_conf_mtrx$overall['Accuracy'], 3)
 
-dt_precision <- round(dt_confusion_mtrx$byClass['Pos Pred Value'], 3)
+df_precision <- round(df_conf_mtrx$byClass['Pos Pred Value'], 3)
 
-dt_roc <- round(calc_auc(roc)$AUC, 3)
+df_roc <- round(calc_auc(roc)$AUC, 3)
 
-dt_f1_score <- round(2*((dt_precision * dt_recall) / (dt_precision + dt_recall)), 3)
+df_f1_score <- round(2*((df_precision * df_recall) / (df_precision + df_recall)), 3)
 
 test_sample_categorical <- test_sample_categorical[ , !(names(test_sample_categorical) %in% c('pred', 'pred_prob', 'error'))]
 
-data.frame(accuracy_baseline, dt_accuracy, dt_precision, dt_recall, dt_f1_score, dt_roc)
+data.frame(base_accuracy, df_accuracy, df_precision, df_recall, df_f1_score, df_roc)
 ```
 
 ### Importance Variable in Decision Tree 
 ```{r}
 
-dt_importance <- data.frame(Variables=names(pruned_decisiontree$variable.importance),
-                            Variables_Importance=pruned_decisiontree$variable.importance)
-dt_importance_plot <- ggplot(dt_importance, aes(x=reorder(Variables, Variables_Importance), y=Variables_Importance, fill=Variables_Importance)) +
-  geom_bar(stat='identity') + coord_flip() + theme(legend.position="none") + labs(x="") +
-  ggtitle('Variable Importance in the Decision Tree model') + theme(plot.title = element_text(hjust=0.4))
-dt_importance_plot
+df_imp <- data.frame(Variables=names(prun_decisiontree$variable.importance),
+                            Variables_Importance=prun_decisiontree$variable.importance)
+df_imp_plot <- ggplot(data = df_imp, aes(x=reorder(Variables, fill=Variables_Importance,
+                                                   Variables_Importance), y=Variables_Importance)) +
+  geom_bar(stat = 'identity') +  labs(x="") +coord_flip() + + theme(legend.position="none")
+  + theme(plot.title=element_text(hjust=0.4)) + ggtitle('Decision Tree model Variable Importance')
+df_imp_plot
 
-rm(dt_importance, cp )
+rm(df_imp, c_p )
 ```
