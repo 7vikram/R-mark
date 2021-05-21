@@ -9,32 +9,32 @@ output: html_document
 ##### Looking into the dimension
 ```{r}
 
-PCA_model <- PCA(sampled_numerical, ncp=2,
+model_pca <- PCA(sampled_numerical, ncp=2,
                  scale.unit=TRUE, graph=F)
 ```
 
-#### Checking for amount of variance retained by each principal component
+#### Checking retaintion of the amount of varaince by each PCA
 ```{r}
-eigen_values <- get_eigenvalue(PCA_model)
+eigen_values <- get_eigenvalue(model_pca)
 print(eigen_values)
 ```
 
 #### Graph of stdev explanation
 ```{r}
-scree_plot <- fviz_screeplot(PCA_model, ylim=c(0, 10), addlabels=T) 
+scree_plot <- fviz_screeplot(model_pca, ylim=c(0, 10), addlabels=T) 
 scree_plot
 ```
 
 #### PCA Model run using k-means algorithm
 ```{r}
-PCA_result <- get_PCA_var(PCA_model)
-set.seed(1715)
-PCA_km <- kmeans(PCA_result$coord, centers=5, nstart=25)
-groups <- as.factor(PCA_km$cluster)
+PCA_result <- get_PCA_var(model_pca)
+set.seed(1725)
+kmeans_PCA <- kmeans(PCA_result$coord, centers=5, nstart=25)
+groups <- as.factor(kmeans_PCA$cluster)
 ```
 
 #### Plot biplot
 ```{r}
-fviz_PCA_var(PCA_model, col.var=groups, legend.title="Cluster")
-rm(accidents_df, sampled_numerical, scree_plot,eigen_values, groups, PCA_model, PCA_result, PCA_km)
+fviz_PCA_var(model_pca, col.var=groups, legend.title="Cluster")
+rm(sampled_numerical,accidents_df, scree_plot,eigen_values, groups, model_pca, PCA_result, kmeans_PCA)
 ```
