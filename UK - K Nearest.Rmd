@@ -5,61 +5,61 @@ date: "5/21/2021"
 output: html_document
 ---
 
-## K nearest neighbour (using normalized data)
+## K nearest neighbour (using normal data)
 #### Split data (70-30)
 ```{r}
 
 set.seed(17245)
-sample_data <- createDataPartition(sampled_normalized$Accident_Severity, p=0.7, list=FALSE) 
-train_sample_normalized <- sampled_normalized[sample_data, ]
-test_sample_normalized <- sampled_normalized[-sample_data, ]
+sample_data <- createDataPartition(sampled_normal$Accident_Severity, list=F, p=0.7) 
+train_sample_normal <- sampled_normal[sample_data, ]
+test_sample_normal <- sampled_normal[-sample_data, ]
 ```
 
-#### Get accuracy baseline
+#### Get accuracy Baseline
 ```{r}
 
-accuracybasline <- round(length(test_sample_normalized[test_sample_normalized$Accident_Severity == 'Slight', ]$Accident_Severity)/
-                             length(test_sample_normalized$Accident_Severity), 3)
+accuracybasline <- round(length(test_sample_normal[test_sample_normal$Accident_Severity == 'Slight', ]$Accident_Severity)/length(test_sample_normal$Accident_Severity), 3)
 accuracybasline
 ```
 
 ### Training the Model
 ```{r}
-start_time <- Sys.time()
-knnFit <- train(Accident_Severity~., data=train_sample_normalized, method="knn", tuneGrid=expand.grid(k=25:50),
-                metric="Accuracy", trControl=trainControl(method="cv", number=10))
-end_time <- Sys.time()
-knn_runtime <- round(as.numeric(end_time - start_time), 2)
-plot(knnFit)
+Start_time <- Sys.time()
+knn_Fit <- train(Accident_Severity~., data=train_sample_normal, tuneGrid=expand.grid(k=25:50), metric="Accuracy",
+                method="knn",
+                trControl=trainControl(number=10, method="cv"))
+End_time <- Sys.time()
+knn_Runtime <- round(as.numeric(End_time - Start_time), 2)
+plot(knn_Fit)
 
 ```
 
 ### Testing the Model
 ```{r}
 
-test_sample_normalized$Accident_Severity = as.factor(test_sample_normalized$Accident_Severity)
+test_sample_normal$Accident_Severity = as.factor(test_sample_normal$Accident_Severity)
 
-test_sample_normalized$pred <- predict(knnFit, test_sample_normalized)
-knn_confusion_mtx <- confusionMatrix(data=test_sample_normalized$pred, reference=test_sample_normalized$Accident_Severity)
-test_sample_normalized <- test_sample_normalized %>%
-  mutate(pred = predict(knnFit, test_sample_normalized),
-         pred_prob = predict(knnFit, type="prob", test_sample_normalized)[,2],
-         error = ifelse(pred != Accident_Severity, 1, 0))
+test_sample_normal$Predict <- predict(knn_Fit, test_sample_normal)
+knn_confusion_mtx <- confusionMatrix(data=test_sample_normal$Predict, reference=test_sample_normal$Accident_Severity)
+test_sample_normal <- test_sample_normal %>%
+  mutate(Predict = predict(knn_Fit, test_sample_normal),
+         Predict_prob = predict(knn_Fit, type="prob", test_sample_normal)[,2],
+         error = ifelse(Predict != Accident_Severity, 1, 0))
 
-#Roc
-roc <- test_sample_normalized %>%
-  select(Accident_Severity, pred_prob) %>%
+# ROC
+roc <- test_sample_normal %>%
+  select(Predict_prob, Accident_Severity) %>%
   mutate(Accident_Severity = as.numeric(Accident_Severity) - 1,
          Accident_Severity.str = c("Fatal_Serious", "Slight")[Accident_Severity + 1]) %>%
-  ggplot(aes(d = Accident_Severity, m = pred_prob)) +
-  geom_roc(labels = FALSE)
+  ggplot(aes(d = Accident_Severity, m = Predict_prob)) +
+  geom_roc(labels = F)
 roc +
   style_roc(theme = theme_bw, xlab = "False Positive Rate", ylab = "True Positive Rate") +
   theme(panel.grid.major = element_blank(), panel.border = element_blank(),
-        axis.line = element_line(colour = "grey")) +
+        axis.line = element_line(colour = "black")) +
   ggtitle("kNN - ROC Curve") +
   annotate("text", x = .75, y = .25,
-           label = paste("AUROC =", round(calc_auc(roc)$AUC, 3)))
+           label = paste("AuROC=", round(calc_auc(roc)$AUC, 3)))
 
 ```
 
@@ -70,6 +70,6 @@ knn_recall <- round(knn_confusion_mtx$byClass['Sensitivity'], 3)
 knn_precision <- round(knn_confusion_mtx$byClass['Pos Pred Value'], 3)
 knn_f1_score <- round(2*((knn_precision * knn_recall) / (knn_precision + knn_recall)), 3)
 knn_roc <- round(calc_auc(roc)$AUC, 3)
-test_sample_normalized <- test_sample_normalized[ , !(names(test_sample_normalized) %in% c('pred', 'pred_prob', 'error'))]
+test_sample_normal <- test_sample_normal[ , !(names(test_sample_normal) %in% c('Predict', 'Predict_prob', 'error'))]
 data.frame(accuracybasline, knn_accuracy, knn_recall, knn_precision, knn_f1_score, knn_roc)
 ```
