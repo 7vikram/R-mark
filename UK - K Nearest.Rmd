@@ -10,66 +10,66 @@ output: html_document
 ```{r}
 
 set.seed(17245)
-sample_data <- createDataPartition(sampled_normal$Accident_Severity, list=F, p=0.7) 
-train_sample_normal <- sampled_normal[sample_data, ]
-test_sample_normal <- sampled_normal[-sample_data, ]
+data_sample <- createDataPartition(sampled_normal$Severity_accident, list=F, p=0.7) 
+train_data <- sampled_normal[data_sample, ]
+test_data <- sampled_normal[-data_sample, ]
 ```
 
 #### Get accuracy Baseline
 ```{r}
 
-accuracybasline <- round(length(test_sample_normal[test_sample_normal$Accident_Severity == 'Slight', ]$Accident_Severity)/length(test_sample_normal$Accident_Severity), 3)
-accuracybasline
+baseline_acc <- round(length(test_data[test_data$Severity_accident == 'Slight', ]$Severity_accident)/length(test_data$Severity_accident), 3)
+baseline_acc
 ```
 
 ### Training the Model
 ```{r}
 Start_time <- Sys.time()
-knn_Fit <- train(Accident_Severity~., data=train_sample_normal, tuneGrid=expand.grid(k=25:50), metric="Accuracy",
+Knear_Fit <- train(Severity_accident~., data=train_data, tuneGrid=expand.grid(k=25:50), metric="Accuracy",
                 method="knn",
                 trControl=trainControl(number=10, method="cv"))
 End_time <- Sys.time()
-knn_Runtime <- round(as.numeric(End_time - Start_time), 2)
-plot(knn_Fit)
+Knear_Runtime <- round(as.numeric(End_time - Start_time), 2)
+plot(Knear_Fit)
 
 ```
 
 ### Testing the Model
 ```{r}
 
-test_sample_normal$Accident_Severity = as.factor(test_sample_normal$Accident_Severity)
+test_data$Severity_accident = as.factor(test_data$Severity_accident)
 
-test_sample_normal$Predict <- predict(knn_Fit, test_sample_normal)
-knn_confusion_mtx <- confusionMatrix(data=test_sample_normal$Predict, reference=test_sample_normal$Accident_Severity)
-test_sample_normal <- test_sample_normal %>%
-  mutate(Predict = predict(knn_Fit, test_sample_normal),
-         Predict_prob = predict(knn_Fit, type="prob", test_sample_normal)[,2],
-         error = ifelse(Predict != Accident_Severity, 1, 0))
+test_data$Predict <- predict(Knear_Fit, test_data)
+Knear_confusion_mtx <- confusionMatrix(data=test_data$Predict, reference=test_data$Severity_accident)
+test_data <- test_data %>%
+  mutate(Predict = predict(Knear_Fit, test_data),
+         Predict_prob = predict(Knear_Fit, type="prob", test_data)[,2],
+         error = ifelse(Predict != Severity_accident, 1, 0))
 
 # ROC
-roc <- test_sample_normal %>%
-  select(Predict_prob, Accident_Severity) %>%
-  mutate(Accident_Severity = as.numeric(Accident_Severity) - 1,
-         Accident_Severity.str = c("Fatal_Serious", "Slight")[Accident_Severity + 1]) %>%
-  ggplot(aes(d = Accident_Severity, m = Predict_prob)) +
+roc_d <- test_data %>%
+  select(Predict_prob, Severity_accident) %>%
+  mutate(Severity_accident = as.numeric(Severity_accident) - 1,
+         Severity_accident.str = c("Fatal_Serious", "Slight")[Severity_accident + 1]) %>%
+  ggplot(aes(d = Severity_accident, m = Predict_prob)) +
   geom_roc(labels = F)
-roc +
+roc_d +
   style_roc(theme = theme_bw, xlab = "False Positive Rate", ylab = "True Positive Rate") +
   theme(panel.grid.major = element_blank(), panel.border = element_blank(),
         axis.line = element_line(colour = "black")) +
   ggtitle("kNN - ROC Curve") +
   annotate("text", x = .75, y = .25,
-           label = paste("AuROC=", round(calc_auc(roc)$AUC, 3)))
+           label = paste("AuROC=", round(calc_auc(roc_d)$AUC, 3)))
 
 ```
 
 ### Model Evaluation
 ```{r}
-knn_accuracy <- round(knn_confusion_mtx$overall['Accuracy'], 3)
-knn_recall <- round(knn_confusion_mtx$byClass['Sensitivity'], 3)
-knn_precision <- round(knn_confusion_mtx$byClass['Pos Pred Value'], 3)
-knn_f1_score <- round(2*((knn_precision * knn_recall) / (knn_precision + knn_recall)), 3)
-knn_roc <- round(calc_auc(roc)$AUC, 3)
-test_sample_normal <- test_sample_normal[ , !(names(test_sample_normal) %in% c('Predict', 'Predict_prob', 'error'))]
-data.frame(accuracybasline, knn_accuracy, knn_recall, knn_precision, knn_f1_score, knn_roc)
+Knear_acc <- round(Knear_confusion_mtx$overall['Accuracy'], 3)
+Knear_recal <- round(Knear_confusion_mtx$byClass['Sensitivity'], 3)
+Knear_precisn <- round(Knear_confusion_mtx$byClass['Pos Pred Value'], 3)
+F1Score_Knear <- round(2*((Knear_precisn * Knear_recal) / (Knear_precisn + Knear_recal)), 3)
+Knear_roc <- round(calc_auc(roc_d)$AUC, 3)
+test_data <- test_data[ , !(names(test_data) %in% c('Predict', 'Predict_prob', 'error'))]
+data.frame(baseline_acc, Knear_acc, Knear_recal, Knear_precisn, F1Score_Knear, Knear_roc)
 ```
