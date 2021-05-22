@@ -11,8 +11,8 @@ output: html_document
 
 start_time <- Sys.time()
 
-caret_rf <- train(x=train_sample_categorical[, !colnames(train_sample_categorical) %in% 'Accident_Severity'], y=train_sample_categorical$Accident_Severity,
-                             data=train_sample_categorical, method='rf', tuneGrid=expand.grid(.mtry=c(5:10)),
+caret_rf <- train(x=train_data[, !colnames(train_data) %in% 'Severity_accident'], y=train_data$Severity_accident,
+                             data=train_data, method='rf', tuneGrid=expand.grid(.mtry=c(5:10)),
                              trControl=trainControl(method="cv", number=10))
 end_time <- Sys.time()
 rf_runtime <- round(as.numeric(end_time - start_time), 2)
@@ -21,31 +21,31 @@ plot(caret_rf)
 
 #### Testing the model
 ```{r}
-test_sample_categorical$Predict <- predict(caret_rf, test_sample_categorical)
-rf_conf_matrix <- confusionMatrix(data=test_sample_categorical$Predict, reference=test_sample_categorical$Accident_Severity)
-test_sample_categorical <- test_sample_categorical %>%
-  mutate(Predict = predict(caret_rf, test_sample_categorical),
-         Predict_prob = predict(caret_rf, type="prob", test_sample_categorical)[,2],
-         error = ifelse(Predict != Accident_Severity, 1, 0))
+test_data$Predict <- predict(caret_rf, test_data)
+rf_conf_matrix <- confusionMatrix(test_data$Predict, reference=test_data$Severity_accident)
+test_data <- test_data %>%
+  mutate(Predict = predict(caret_rf, test_data),
+         Predict_prob = predict(caret_rf, type="prob", test_data)[,2],
+         error = ifelse(Predict != Severity_accident, 1, 0))
 
 ```
 
 
 ### ROC plot
 ```{r}
-roc <- test_sample_categorical %>%
-  select(Accident_Severity, Predict_prob) %>%
-  mutate(Accident_Severity = as.numeric(Accident_Severity) - 1,
-         Accident_Severity.str = c("Fatal_Serious", "Slight")[Accident_Severity + 1]) %>%
-  ggplot(aes(m = Predict_prob, d = Accident_Severity)) +
+roc_d <- test_data %>%
+  select(Severity_accident, Predict_prob) %>%
+  mutate(Severity_accident = as.numeric(Severity_accident) - 1,
+         Severity_accident.str = c("Fatal_Serious", "Slight")[Severity_accident + 1]) %>%
+  ggplot(aes(m = Predict_prob, d = Severity_accident)) +
   geom_roc(labels = F)
-roc +
+roc_d +
   style_roc(xlab = "False Positive Rate", ylab = "True Positive Rate", theme = theme_bw) +
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-        axis.line = element_line(colour = "grey")) +
+  theme(panel.grid.major = element_blank(),axis.line = element_line(colour = "grey"),
+        panel.border = element_blank()) +
   ggtitle("Random Forest - ROC Curve") +
   annotate("text", x = .75, y = .25,
-           label = paste("AuROC=", round(calc_auc(roc)$AUC, 3)))
+           label = paste("AuROC=", round(calc_auc(roc_d)$AUC, 3)))
 ```
 
 ### Model Evaluation
@@ -53,17 +53,17 @@ roc +
 ```{r}
 
 
-rf_accuracy <- round(rf_conf_matrix$overall['Accuracy'], 3)
-rf_precision <- round(rf_conf_matrix$byClass['Pos Predict Value'], 3)
-rf_recall <- round(rf_conf_matrix$byClass['Sensitivity'], 3)
-rf_f1_score <- round(2*((rf_precision * rf_recall) / (rf_precision + rf_recall)), 3)
-rf_roc <- round(calc_auc(roc)$AUC, 3)
+Acc_RF <- round(rf_conf_matrix$overall['Accuracy'], 3)
+Precision_RF <- round(rf_conf_matrix$byClass['Pos Predict Value'], 3)
+Recall_RF <- round(rf_conf_matrix$byClass['Sensitivity'], 3)
+F1score_RF <- round(2*((Precision_RF * Recall_RF) / (Precision_RF + Recall_RF)), 3)
+ROC_RF <- round(calc_auc(roc_d)$AUC, 3)
 
 #use of test
-test_sample_categorical <- test_sample_categorical[ , !(names(test_sample_categorical) %in% c('Predict', 'Predict_prob', 'error'))]
+test_data <- test_data[ , !(colnames(test_data) %in% c('Predict', 'Predict_prob', 'error'))]
 
 #accuracy readings
-data.frame(rf_accuracy, accuracy_baseline, rf_precision, rf_f1_score, rf_recall, rf_roc)
+data.frame(Acc_RF, Baseline_acc, Precision_RF, F1score_RF, Recall_RF, ROC_RF)
 ```
 
 
@@ -74,7 +74,7 @@ rf_imp <- rf_imp$importance
 rf_gini <- data.frame(Variables=row.names(rf_imp), MeanDecreaseGini=rf_imp$Overall)
 rf_imp_plot <- ggplot(rf_gini, aes(y=MeanDecreaseGini,x=reorder(Variables, MeanDecreaseGini),fill=MeanDecreaseGini)) +
   geom_bar(stat='identity') + theme(legend.position="none") + coord_flip() + labs(x="") +
-  ggtitle('Random Forest model Variable Importance') + theme(plot.title = element_text(hjust=0.5))
+  ggtitle('Random Forest model Variable Importance') + theme(plot.title = element_text(hjust=0.6))
 rf_imp_plot
 rm(rf_gini, rf_imp)
 
@@ -82,8 +82,7 @@ rm(rf_gini, rf_imp)
 
 #### compare VI of RF and DT
 ```{r}
-grid.arrange(rf_imp_plot, dt_imp_plot, ncol=2)
-rm(rf_imp_plot, dt_imp_plot)
+grid.arrange(dt_imp_plot, rf_imp_plot, ncol=2)
 ```
 
 
@@ -92,34 +91,34 @@ rm(rf_imp_plot, dt_imp_plot)
 
 
 set.seed(124)
-sample_data <- createDataPartition(sampled_categorical$Accident_Severity, list=F, p=0.5)
-sampled_num <- sampled_categorical[sample_data, ]
+sample_data <- createDataPartition(sampled_categorical$Severity_accident, list=F, p=0.5)
+Numerical_sample_data <- sampled_categorical[sample_data, ]
 
 #Removing noise by using Variable importance of the Random Forest and Decision Tree models
-sampled_num <- as_tibble(sampled_num[ , !(names(sampled_num) %in%
+Numerical_sample_data <- as_tibble(Numerical_sample_data[ , !(colnames(Numerical_sample_data) %in%
                                                               c('High_Wind', 'Propulsion_Code'))])
-sampled_num <- dummy_cols(sampled_num,
-                                   select_columns = c('X1st_Road_Class', 'Region', 'Urban_or_Rural_Area',
+Numerical_sample_data <- dummy_cols(Numerical_sample_data,
+                                   select_columns = c('X1st_Road_Class', 'Region', 'Rural_Urban',
                                                       'Road_Surface_Conditions', 'Road_Type', 'Weather',
                                                        'Junction_Detail', 'Lights',
                                                       'X1st_Point_of_Impact','Junction_Location', 
                                                       'Vehicle_Make', 'Driver_Journey_Purpose', 
                                                       'Vehicle_Manoeuvre', 'Vehicle_Category'),
                           remove_most_frequent_dummy=T)
-drop_columns <- c('Urban_or_Rural_Area', 'Region', 'X1st_Road_Class', 'Junction_Detail', 'Road_Surface_Conditions',
+drop_columns <- c('Rural_Urban', 'Region', 'X1st_Road_Class', 'Junction_Detail', 'Road_Surface_Conditions',
                   'Road_Type','Weather', 'Lights', 'Junction_Location', 'X1st_Point_of_Impact',
                   'Driver_Journey_Purpose', 'Vehicle_Category','Vehicle_Make', 'Vehicle_Manoeuvre')
 
-sampled_num <- sampled_num[ , !(names(sampled_num) %in% drop_columns)]
+Numerical_sample_data <- Numerical_sample_data[ , !(colnames(Numerical_sample_data) %in% drop_columns)]
 rm(drop_columns)
 
-sampled_normal <- predict(preProcess(sampled_num, method=c("scale","center")),
-                                 sampled_num)
+Normalised_sample_data <- predict(preProcess(Numerical_sample_data, method=c("scale","center")),
+                                 Numerical_sample_data)
 
-sampled_normal <- dummy_cols(sampled_normal, select_columns = c('Accident_Severity'),
+Normalised_sample_data <- dummy_cols(Normalised_sample_data, select_columns = c('Severity_accident'),
                                     remove_most_frequent_dummy=T)
-names(sampled_normal)[names(sampled_normal) == 'Accident_Severity_Fatal_Serious'] <- 'Fatal_or_Serious_Accident'
+colnames(Normalised_sample_data)[colnames(Normalised_sample_data) == 'Severity_accident_Fatal_Serious'] <- 'Fatal_or_Serious_Accident'
 
-sampled_num <- select(sampled_normal, -matches("Accident_Severity"))
-sampled_normal <- select(sampled_normal, -matches("Fatal_or_Serious_Accident"))
+Numerical_sample_data <- select(Normalised_sample_data, -matches("Severity_accident"))
+Normalised_sample_data <- select(Normalised_sample_data, -matches("Fatal_or_Serious_Accident"))
 ```
